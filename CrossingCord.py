@@ -1,0 +1,765 @@
+import asyncio
+import os
+import pickle
+import random
+import sys
+import urllib
+import time as t
+from datetime import timedelta
+from io import BytesIO
+
+import discord
+import base64
+import mysql.connector as mysql
+import requests
+from PIL import Image, ImageDraw, ImageFont
+from discord.ext import commands
+
+from Objects.FakeUser import *
+from Objects.island import *
+from var_secrets import *
+
+
+class CrossingCord(commands.Cog):
+    baseurl = "http://ec2-54-197-45-150.compute-1.amazonaws.com/assets"
+    guarantee_shiny = False
+    spawn_min = 30
+    spawn_max = 60
+    spawn_list = []
+
+    def __init__(self, bot):
+        self.bot = bot
+        self.time_to_spawn = None
+        self.villager_store = None
+        self.db = mysql.connect(
+            host=MYSQL_HOST,
+            user=MYSQL_USER_NAME,
+            passwd=MYSQL_PASS,
+            database=MYSQL_DATABASE
+        )
+        self.update_spawn_rates()
+
+    @property
+    def appeared(self):
+        return self.villager_store is not None
+
+    @property
+    def time_to_spawn(self):
+        return self._time_to_spawn
+
+    @time_to_spawn.setter
+    def time_to_spawn(self, value):
+        self._time_to_spawn = value
+
+    def getSeconds(self):
+        return (self.time_to_spawn - datetime.now()).total_seconds()
+
+    def setToSpawn(self):
+        if self.time_to_spawn is None:
+            return False
+        else:
+            return True
+
+    def update_spawn_rates(self):
+        temp_list = []
+        cursor = self.db.cursor()
+        cursor.execute("SELECT id, rate from villagers")
+        for id, rate in cursor.fetchall():
+            temp_list += [id] * rate
+        self.spawn_list = temp_list
+        print("Spawn rates updated.")
+
+    async def islandPerms(context):
+        allowed = [794328071993425950,301129424710008852,790985121342685195,168776730541031424,405929732224581632,513502367447252992,306909839840509962]
+        #allowed = [832816953482936350]
+        if context.author.id in allowed:
+            return True
+        else:
+            return False
+
+    @commands.command(name='updaterates')
+    @commands.is_owner()
+    async def cmd_updaterates(self, context, message=None):
+        self.update_spawn_rates()
+        await context.channel.send("Spawn Rates have been updated.")
+
+    def get_Islands(self):
+        if os.path.isfile("IO Files/Islands.pickle"):
+            with open("IO Files/Islands.pickle", 'rb') as file:
+                try:
+                    Islands = pickle.load(file)
+                    if isinstance(Islands, dict):
+                        print("Found islands")
+                        return Islands
+                    else:
+                        print("Couldn't Find islands")
+                        return {}
+                except EOFError:
+                    return {}
+                except Exception as Err:
+                    print(Err)
+                    pass
+        else:
+            return {}
+
+    def update_islands(self, islands):
+        with open("IO Files/Islands.pickle", 'wb') as file:
+            try:
+                pickle.dump(islands, file)
+                pass
+            except Exception as Err:
+                print(Err)
+
+    async def draw_island(self, context):
+        Islands = self.get_Islands()
+        if context.author.id in Islands.keys():
+            Island = Islands[context.author.id]
+            userlist = Island.getPokeList()
+            image = Image.open('assets/Images/island.png')
+            draw = ImageDraw.Draw(image)
+
+            if Island.hasBackground():
+                try:
+                    background = Image.open(BytesIO(requests.get(Island.getBackground()).content))
+                    background = background.resize((700, 375), Image.ANTIALIAS)
+                    image.paste(background, (0, 0), image)
+                    slots = Image.open('assets/Images/slots.png')
+                    image.paste(slots, (0, 0), slots)
+                except:
+                    await self.islandremovebackground(context)
+
+            font = ImageFont.truetype('assets/Fonts/FinkHeavy.ttf', size=45)
+            (x, y) = (75, 50)
+            username = context.author.name
+            if len(username) > 13:
+                message = username[:10] + "...'s island."
+            else:
+                message = username + "'s island."
+
+            color = 'rgb(0, 0, 0)'  # black color
+            draw.text((x, y), message, fill=color, font=font)
+            counter = 0
+            xcoord = 50
+            ycoord = 112
+            cursor = self.db.cursor()
+            cursor.execute(
+                "SELECT captures.number , villagers.name "
+                "FROM captures "
+                "INNER JOIN villagers ON captures.villager_id = villagers.id "
+                "INNER JOIN users ON captures.user_id = users.id "
+                f"WHERE users.discord_id LIKE {context.author.id};"
+            )
+            results = cursor.fetchall()
+            user_list = {}
+            for number, name in results:
+                user_list[name] = number
+
+            cursor.execute(
+                "SELECT captures.shiny_number , villagers.name "
+                "FROM captures "
+                "INNER JOIN villagers ON captures.villager_id = villagers.id "
+                "INNER JOIN users ON captures.user_id = users.id "
+                f"WHERE users.discord_id LIKE {context.author.id} AND captures.shiny_number > 0;"
+            )
+            results = cursor.fetchall()
+            shiny_list = {}
+            for shiny_number, name in results:
+                shiny_list[name] = shiny_number
+
+            for villager in userlist:
+                cursor.execute(f"SELECT name from villagers WHERE id = {villager}")
+                name = cursor.fetchall()[0][0];
+                response = requests.get("{}/icon/{}.png".format(self.baseurl, name))
+                img = Image.open(BytesIO(response.content))
+                img = img.resize((100, 100), Image.ANTIALIAS)
+                image.paste(img, (xcoord, ycoord), img)
+
+                if name in shiny_list.keys():
+                    print(name)
+                    sparkle = Image.open('assets/Images/sparkles.png')
+                    image.paste(sparkle, (xcoord + 10, ycoord + 70), sparkle)
+                if user_list[name] >= 100:
+                    star = Image.open('assets/Images/gold.png')
+                    image.paste(star, (xcoord + 70, ycoord + 70), star)
+                elif user_list[name]  >= 50:
+                    star = Image.open('assets/Images/silver.png')
+                    image.paste(star, (xcoord + 70, ycoord + 70), star)
+                elif user_list[name]  >= 10:
+                    star = Image.open('assets/Images/bronze.png')
+                    image.paste(star, (xcoord + 70, ycoord + 70), star)
+                if counter == 4:
+                    xcoord = 50
+                    ycoord = 237
+                else:
+                    xcoord += 125
+                counter += 1
+            fp = BytesIO()
+            image.save(fp, format="PNG")
+            fp.seek(0)
+            await context.channel.send(file=discord.File(fp, 'island.png'))
+        else:
+            await context.channel.send("```\nYou do not have an island please add Villagers first.\n```")
+
+    async def on_ready(self):
+        print("Listening")
+        channel = self.bot.get_channel(CHANNEL)
+        message = await channel.send("CrossingCord Started.")
+        await self._spawn(message)
+        # Check if a pokemon is queued to be spawned
+        """if self.setToSpawn():
+            # If time to spawn in the future set in motion
+            if self.time_to_spawn > datetime.now():
+                await asyncio.sleep(self.getSeconds())
+            # await self.cmd_spawn('spawn', client.get_channel(CHANNEL_IDs))"""
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        # Bot or wrong channel do nothing
+        if message.author == self.bot.user or message.content[1:].startswith("spawn"):  # or message.channel == CHANNEL_IDs:
+            return
+
+        # Pokemon is going to be found
+        if self.setToSpawn():
+            pass
+        else:
+            # Pokemon is ready for capture
+            if self.appeared:
+                await self.check_capture(message)
+
+
+    @commands.command(name='restart')
+    @commands.is_owner()
+    async def cmd_restart(self, ctx, message=None):
+        await ctx.channel.send('Restarting...')
+        await self.bot.close()
+        os.execl(sys.executable, sys.executable, *sys.argv)
+
+
+    @commands.command(name='total')
+    @commands.is_owner()
+    async def cmd_total(self, context):
+        cursor = self.db.cursor()
+        cursor.execute("SELECT number from crossingcord.captures")
+        results = cursor.fetchall()
+        total = 0;
+        for result in results:
+            total += int(result[0])
+        await context.channel.send(f"Total Villagers Caught: {total}")
+
+    @commands.command(name='inventory')
+    async def cmd_inventory(self, context):
+        cursor = self.db.cursor()
+        cursor.execute(f"SELECT id from users WHERE discord_id = {context.author.id};")
+        result = cursor.fetchone()
+        if result is not None:
+            str_title = "{}'s Villagers".format(context.author.name)
+            embed = discord.Embed(type="rich", title=str_title, color=0xEEE8AA)
+
+            embed.description = "http://pokecord.meganisaclown.com/villagers/villager.php?name={}&id={}"\
+                .format(urllib.parse.quote(base64.b64encode(context.author.name.encode('ascii'))), context.author.id)
+            await context.channel.send(embed=embed)
+        else:
+            msg = "{} you have no Villagers".format(context.author.name)
+            await context.channel.send(msg)
+
+    @commands.command(name='shutdown')
+    @commands.is_owner()
+    async def cmd_shutdown(self, context):
+        await self.bot.close()
+        # exit()
+
+    @commands.command(name='updateislands')
+    @commands.is_owner()
+    async def cmd_updateislands(self, context):
+        Islands = self.get_Islands()
+        keys = Islands.keys()
+        for key in keys:
+            user = FakeUser(Islands[key].user)
+            Islands[key] = Island(user, [], Islands[key])
+        self.update_islands(Islands)
+        await self.bot.close()
+        # exit()
+
+    @commands.command(name='startspeedround')
+    @commands.is_owner()
+    async def cmd_startspeedround(self, context):
+        await self.startHypeTrain(context)
+        # exit()
+
+    async def startHypeTrain(self, context):
+        self.traintime = t.time() + 10800
+        await context.channel.send("{} triggered a Speed Round it Will Begin Shortly!".format(context.author.name))
+        oldmin = self.spawn_min
+        oldmax = self.spawn_max
+        self.spawn_min = 2
+        self.spawn_max = 5
+        await asyncio.sleep(180)
+        await self.stopHypeTrain(context, oldmin, oldmax)
+
+    async def stopHypeTrain(self, context, oldmin, oldmax):
+        self.spawn_min = oldmin
+        self.spawn_max = oldmax
+        await context.channel.send("The Speed Round is over hope you had fun!")
+
+    async def islandremovebackground(self, context):
+        Islands = self.get_Islands()
+        if context.author.id in Islands.keys():
+            Islands[context.author.id].setBackground(None)
+        self.update_islands(Islands)
+
+    async def islandreplace(self, context, villager, villager1):
+        Islands = self.get_Islands()
+
+        cursor = self.db.cursor()
+
+        cursor.execute(f"SELECT id from users WHERE discord_id = {context.author.id};")
+        result = cursor.fetchone()
+        if result is not None:
+            cursor.execute(
+                "SELECT villagers.name, villagers.id "
+                "FROM captures "
+                "INNER JOIN villagers ON captures.villager_id = villagers.id "
+                "INNER JOIN users ON captures.user_id = users.id "
+                f"WHERE users.discord_id LIKE {context.author.id};"
+            )
+            results = cursor.fetchall()
+            user_list = {}
+            for name, id in results:
+                user_list[name.title()] = [name, id]
+            if villager1.title() in user_list.keys():
+                if context.author.id in Islands.keys():
+                    if Islands[context.author.id].removePokemon(villager.title()):
+                        if Islands[context.author.id].addPokeList(user_list[villager1.title()], context.author):
+                            await context.channel.send(
+                                "```\n{} has been replaced with {} on {}'s Island.\n```".format(villager.title(),
+                                                                                                villager1.title(),
+                                                                                                context.author.name))
+                        else:
+                            await context.channel.send(
+                                "```\nCould not add {} to your Island. Maybe they are already added.\n```".format(
+                                    villager1.title()))
+                    else:
+                        await context.channel.send("```\n{} is not on your Island.\n```".format(villager.title()))
+
+                else:
+                    await context.channel.send("```\nYou do not have an island please add Villagers first.\n```")
+            else:
+                await context.channel.send("```\nYou have not found {}.\n```".format(villager1.title()))
+        else:
+            await context.channel.send("```\nYou have not found any Villagers.\n```")
+        self.update_islands(Islands)
+
+    async def islandadd(self, context, villager):
+        Islands = self.get_Islands()
+        cursor = self.db.cursor()
+
+        cursor.execute(f"SELECT id from users WHERE discord_id = {context.author.id};")
+        result = cursor.fetchone()
+        if result is not None:
+            cursor.execute(
+                "SELECT villagers.name, villagers.id "
+                "FROM captures "
+                "INNER JOIN villagers ON captures.villager_id = villagers.id "
+                "INNER JOIN users ON captures.user_id = users.id "
+                f"WHERE users.discord_id LIKE {context.author.id};"
+            )
+            results = cursor.fetchall()
+            user_list = {}
+            for name, id in results:
+                user_list[name.title()] = [name, id]
+            if villager.title() in user_list.keys():
+                if context.author.id in Islands.keys():
+                    if Islands[context.author.id].addPokeList(user_list[villager.title()], context.author):
+                        await context.channel.send(
+                            "```\n{} has been added to {}'s Island.\n```".format(villager.title(), context.author.name))
+                    else:
+                        await context.channel.send(
+                            "```\nCould not add {} to your Island. Maybe it is full or they are already added.\n```".format(
+                                villager.title()))
+                else:
+                    Islands[context.author.id] = Island(context.author, user_list[villager.title()])
+                    await context.channel.send(
+                        "```\n{} has been added to {}'s Island.\n```".format(villager.title(), context.author.name))
+            else:
+                await context.channel.send("```\nYou have not found {}.\n```".format(villager.title()))
+        else:
+            await context.channel.send("```\nYou have not found any Villagers.\n```")
+        self.update_islands(Islands)
+
+    async def islandrm(self, context, villager):
+        Islands = self.get_Islands()
+        if context.author.id in Islands.keys():
+            if Islands[context.author.id].removePokemon(villager.title()):
+                await context.channel.send(
+                    "```\n{} has been removed from {}'s Island.\n```".format(villager.title(), context.author.name))
+            else:
+                await context.channel.send("```\n{} is not on your Island.\n```".format(villager.title()))
+        else:
+            await context.channel.send("```\nYou do not have an island please add Villagers first.\n```")
+        self.update_islands(Islands)
+
+    async def islandbackground(self, context, background):
+        Islands = self.get_Islands()
+        if context.author.id in Islands.keys():
+            Islands[context.author.id].setBackground(background)
+        else:
+            await context.channel.send("```\nYou do not have an island please add Villagers first.\n```")
+        self.update_islands(Islands)
+
+    @commands.command(name='odds')
+    async def cmd_odds(self, context):
+        embed = discord.Embed(title="__**Shiny Odds:**__",
+                              description="**Non-Sub:** 1/2048\n**Tier 1 Sub:** 1/1024\n**Tier 2 Sub:** 1/512\n**Discord Boosters:** 1/512\n**Tier 3 Sub:** 1/256\n")
+        await context.channel.send(embed=embed)
+
+    @commands.command(name='island')
+    async def cmd_island(self, context, *args):
+        # no arguments supplied
+        if len(args) == 0:
+            await self.draw_island(context)
+        else:
+            if args[0] == 'help':
+                if len(args) == 1:
+                    text = ""
+                    text += "```\n"
+                    text += "Island Commands:\n"
+                    text += "   add: Adds a Villager to your Island.\n"
+                    text += "   remove: Removes a Villager from your Island.\n"
+                    text += "   replace: Replaces a villager on your Island.\n"
+                    text += "   setbackground: Sets your Island's background.\n"
+                    text += "   removebackground: Removes your Island's background.\n"
+                    text += "   help: This message.\n"
+                    text += "\n"
+                    text += "You can also do ;island help [command] for more info.\n"
+                    text += "```\n"
+                    await context.channel.send(text)
+                else:
+                    if args[1] == 'add':
+                        text = ""
+                        text += "```\n"
+                        text += "Island Add:\n"
+                        text += "   format: ;island add [villager]"
+                        text += "\n"
+                        text += "Adds a villager to your Island. This must be a villager you have already found. And you cannot exceed 10 villagers on your Island.\n"
+                        text += "```\n"
+                        await context.channel.send(text)
+                    elif args[1] == 'remove':
+                        text = ""
+                        text += "```\n"
+                        text += "Island Remove:\n"
+                        text += "   format: ;island remove [villager]"
+                        text += "\n"
+                        text += "Removes a villager from your Island.\n"
+                        text += "```\n"
+                        await context.channel.send(text)
+                    elif args[1] == 'replace':
+                        text = ""
+                        text += "```\n"
+                        text += "Island Replace:\n"
+                        text += "   format: ;island replace [villager1] [villager2]"
+                        text += "\n"
+                        text += "Replaces a villager on your Island, villager1 is the villager that is currently on yout Island and villager2 is the villager you would like to replace them with.\n"
+                        text += "```\n"
+                        await context.channel.send(text)
+                    elif args[1] == 'setbackground':
+                        text = ""
+                        text += "```\n"
+                        text += "Island SetBackground:\n"
+                        text += "   format: ;island setbackground [link]"
+                        text += "\n"
+                        text += "Sets your Island's background to the provided image.\n"
+                        text += "The provided link must be a .png file."
+                        text += "```\n"
+                        await context.channel.send(text)
+                    elif args[1] == 'removebackground':
+                        text = ""
+                        text += "```\n"
+                        text += "Island RemoveBackground:\n"
+                        text += "Removes your Island's background and sets it back to the default image."
+                        text += "```\n"
+                        await context.channel.send(text)
+                    elif args[1] == 'help':
+                        text = ""
+                        text += "```\n"
+                        text += "Island Help:\n"
+                        text += "Think you're being funny don't ya?"
+                        text += "```\n"
+                        await context.channel.send(text)
+                    else:
+                        text = ""
+                        text += "```\n"
+                        text += "Unrecognized Command\n"
+                        text += "```\n"
+                        await context.channel.send(text)
+            elif args[0] == 'add':
+                if len(args) == 1:
+                    text = ""
+                    text += "```\n"
+                    text += "Please specify a villager.\n"
+                    text += "```\n"
+                    await context.channel.send(text)
+                else:
+                    await self.islandadd(context, args[1])
+
+            elif args[0] == 'remove':
+                if len(args) == 1:
+                    text = ""
+                    text += "```\n"
+                    text += "Please specify a villager.\n"
+                    text += "```\n"
+                    await context.channel.send(text)
+                else:
+                    print("\"" + args[1] + "\"")
+                    await self.islandrm(context, args[1])
+
+            elif args[0] == 'replace':
+                if len(args) < 3:
+                    text = ""
+                    text += "```\n"
+                    text += "Please specify two villagers.\n"
+                    text += "```\n"
+                    await context.channel.send(text)
+                else:
+                    await self.islandreplace(context, args[1], args[2])
+            elif args[0] == 'setbackground':
+                if len(args) == 1:
+                    text = ""
+                    text += "```\n"
+                    text += "Please provide a background link.\n"
+                    text += "```\n"
+                    await context.channel.send(text)
+                else:
+                    if args[1][-4:] == ".png":
+
+                        await self.islandbackground(context, args[1])
+                        text = ""
+                        text += "```\n"
+                        text += "Your background has been updated.\n"
+                        text += "```\n"
+                        await context.channel.send(text)
+                    else:
+                        text = ""
+                        text += "```\n"
+                        text += "The background link must be a PNG.\n"
+                        text += "```\n"
+                        await context.channel.send(text)
+            elif args[0] == 'removebackground':
+                await self.islandremovebackground(context)
+                text = ""
+                text += "```\n"
+                text += "Your background has been removed.\n"
+                text += "```\n"
+                await context.channel.send(text)
+
+            else:
+                text = ""
+                text += "```\n"
+                text += "Unrecognized Command\n"
+                text += "```\n"
+                await context.channel.send(text)
+
+        # exit()
+
+    @commands.command(name='shinycheck')
+    @commands.is_owner()
+    async def cmd_shinycheck(self, context):
+        message = ""
+        for villager in self.villagerdata:
+            response = requests.get("{}/shiny/{}.png".format(self.baseurl, villager[0]))
+            if (response.status_code > 400):
+                message = message + "{}: No\n".format(villager[0])
+            else:
+                message = message + "{}: Yes\n".format(villager[0])
+            if (len(message) > 1500):
+                await context.channel.send(message)
+                message = ""
+        await context.channel.send(message)
+
+    @commands.command(name='spawn')
+    @commands.is_owner()
+    async def cmd_spawn(self, context, message=None):
+        await self._spawn(context, message)
+
+    @commands.command(name='setspawnrate')
+    @commands.is_owner()
+    async def cmd_setspawnrate(self, context, *args):
+        cursor = self.db.cursor();
+        query = (
+            f"UPDATE villagers "
+            f"SET rate = {args[1]} "
+            f"WHERE name = '{args[0]}';")
+        cursor.execute(query)
+        self.db.commit()
+        self.cmd_updaterates(context)
+
+    async def _spawn(self, context, message=None):
+        spawnnumber = 0
+        if message is None:
+            # spawnnumber = random.randint(0,len(self.villagerdata)-1)
+            spawnnumber = random.choice(self.spawn_list)
+        else:
+            spawnnumber = int(message)
+
+        cursor = self.db.cursor()
+        cursor.execute(f"SELECT name, id FROM villagers WHERE id = {spawnnumber};")
+        result = cursor.fetchone();
+        new_data = [result[0], result[1]]
+        self.time_to_spawn = None
+        await context.channel.send('A Villager appears!')
+        self.villager_store = new_data
+
+        embed = discord.Embed()
+        embed.title = "Who's that Villager"
+        embed.set_thumbnail(url="{}/normal/{}.png".format(self.baseurl, self.villager_store[0]))
+        sent_msg = await context.channel.send(embed=embed)
+        self.spawn_msg = sent_msg.id
+        game = discord.Game("Who's That Villager?")
+        await self.bot.change_presence(status=discord.Status.online, activity=game)
+
+    @commands.command(name='resend')
+    @commands.check(islandPerms)
+    # @has_role("crossingcord helper")
+    async def cmd_resend(self, context):
+        embed = discord.Embed()
+        embed.title = "Who's that Villager"
+        embed.set_thumbnail(url="{}/normal/{}.png".format(self.baseurl, self.villager_store[0]))
+        sent_msg = await context.channel.send(embed=embed)
+
+
+
+    async def check_capture(self, message):
+        # await self.checkTrain(message)
+        pokemessage = message.content.lower().replace(" ", "_")
+        if pokemessage == 'mogs':
+            pokemessage = 'bertha'
+        if pokemessage == 'becca':
+            pokemessage = 'marcel'
+        if pokemessage == 'gaia':
+            pokemessage = 'becky'
+        if pokemessage == 'gary':
+            pokemessage = 'sly'
+        if self.villager_store is None:
+            return False
+        if self.villager_store[0].lower() == pokemessage:
+            tempstore = self.villager_store
+            self.villager_store = None
+
+            shinyNum = random.randint(1, 2048)
+            # sub
+            if "692903238462341240" in [y.id for y in message.author.roles]:
+                shinyNum = random.randint(1, 1024)
+            # tier 2
+            if "692903238462341241" in [y.id for y in message.author.roles]:
+                shinyNum = random.randint(1, 512)
+            # boosters
+            if "658383287600939059" in [y.id for y in message.author.roles]:
+                shinyNum = random.randint(1, 512)
+            # tier 3
+            if "692903238462341242" in [y.id for y in message.author.roles]:
+                shinyNum = random.randint(1, 256)
+
+            # test switch
+
+            response = requests.get("{}/shiny/{}.png".format(self.baseurl, tempstore[0]))
+            if (response.status_code > 400):
+                shinyNum = 2
+            else:
+                if (self.guarantee_shiny):
+                    shinyNum = 1
+                    self.guarantee_shiny = False
+
+            embed = discord.Embed(type="rich", title="Gotcha!", color=0xEEE8AA)
+            if shinyNum == 1:
+                embed.description = ":sparkles: [{}]({}) :sparkles: was found by {}".format(tempstore[0].upper(),
+                                                                                            "https://animalcrossing.fandom.com/wiki/{}".format(
+                                                                                                tempstore[0]),
+                                                                                            message.author.mention)
+                embed.set_thumbnail(url="{}/shiny/{}.png".format(self.baseurl, tempstore[0]))
+            else:
+                embed.description = "[{}]({}) was found by {}".format(tempstore[0].upper(),
+                                                                      "https://animalcrossing.fandom.com/wiki/{}".format(
+                                                                          tempstore[0]), message.author.mention)
+                embed.set_thumbnail(url="{}/normal/{}.png".format(self.baseurl, tempstore[0]))
+            # await client.send_message(message.channel, "Gotcha!\n{} was caught by {}".format(self.pokestore['name'].upper(), message.author.mention))
+            await message.channel.send(embed=embed)
+            cursor = self.db.cursor()
+
+            cursor.execute(f"SELECT captures.number from users "
+                           f"INNER JOIN captures ON users.id = captures.user_id "
+                           f"WHERE users.discord_id = {message.author.id} AND captures.villager_id = {tempstore[1]};")
+            result = cursor.fetchone()
+            if result is not None:
+                cursor.execute(f"SELECT * FROM users WHERE discord_id = {message.author.id};")
+                result = cursor.fetchone();
+                id = result[0]
+                if shinyNum == 1:
+                    query = (
+                        f"UPDATE captures "
+                        "SET shiny_number = shiny_number + 1 "
+                        f"WHERE user_id = {id} AND villager_id = {tempstore[1]};")
+                else:
+                    query = (
+                        f"UPDATE captures "
+                        "SET number = number + 1 "
+                        f"WHERE user_id = {id} AND villager_id = {tempstore[1]};")
+                cursor.execute(query)
+            else:
+                cursor.execute(f"SELECT id FROM users WHERE discord_id = {message.author.id};")
+                result = cursor.fetchone();
+                if result is None:
+                    cursor.execute(f"INSERT INTO users (discord_id) VALUES ({message.author.id});")
+                    cursor.execute(f"SELECT * FROM users WHERE discord_id = {message.author.id};")
+                    result = cursor.fetchone();
+                    id = result[0]
+                else:
+                    id = result[0]
+                query = (
+                    "INSERT INTO captures (user_id , villager_id, number) "
+                    "VALUES (%s,%s, %s);"
+                )
+                values = (id, tempstore[1], 1)
+                cursor.execute(query, values)
+            self.db.commit()
+            tempstore = None
+
+            #if message.author.id in self.user_list.keys():
+            #    self.user_list[message.author.id].generateHTML(message.author)
+            self.time_to_spawn = datetime.now() + timedelta(seconds=random.randint(self.spawn_min, self.spawn_max))
+            # await message.channel.send('Pokemon set to spawn!')
+            await asyncio.sleep(self.getSeconds())
+            await self._spawn(message)
+            return True
+        return False
+
+    @commands.command(name='setrate')
+    @commands.is_owner()
+    async def cmd_setrate(self, context, arg, arg1):
+        self.spawn_min = int(arg)
+        self.spawn_max = int(arg1)
+        await context.channel.send("Spawnrate has been set to {}-{}seconds.".format(arg, arg1))
+
+    @commands.command(name='getrate')
+    @commands.is_owner()
+    async def cmd_getrate(self, context):
+        await context.channel.send("Spawnrate is {}-{}seconds.".format(self.spawn_min, self.spawn_max))
+
+
+
+    @commands.command(name='clean')
+    @commands.is_owner()
+    async def cmd_clean(self, context, numMessages: int = 0):
+        if numMessages == 0:
+            for msg in self.bot.cached_messages:
+                await msg.delete()
+        else:
+            deleted = await context.channel.purge(limit=numMessages + 1)
+
+    @commands.command(name='shiny')
+    @commands.is_owner()
+    async def cmd_shiny(self, context):
+        self.guarantee_shiny = True
+
+    @commands.command(name='ban')
+    @commands.is_owner()
+    async def cmd_ban(self, context, message):
+        await context.channel.send("{} has been banned from CrossingCord.".format(message))
