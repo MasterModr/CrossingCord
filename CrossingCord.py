@@ -69,13 +69,11 @@ class CrossingCord(commands.Cog):
         self.spawn_list = temp_list
         print("Spawn rates updated.")
 
-    async def islandPerms(context):
-        allowed = [794328071993425950,301129424710008852,790985121342685195,168776730541031424,405929732224581632,513502367447252992,306909839840509962]
-        #allowed = [832816953482936350]
-        if context.author.id in allowed:
-            return True
-        else:
-            return False
+    async def helper_perms(self):
+        for role in self.author.roles:
+            if HELPER_ROLE == role.id:
+                return True
+        return False
 
     @commands.command(name='updaterates')
     @commands.is_owner()
@@ -181,10 +179,10 @@ class CrossingCord(commands.Cog):
                 if user_list[name] >= 100:
                     star = Image.open('assets/Images/gold.png')
                     image.paste(star, (xcoord + 70, ycoord + 70), star)
-                elif user_list[name]  >= 50:
+                elif user_list[name] >= 50:
                     star = Image.open('assets/Images/silver.png')
                     image.paste(star, (xcoord + 70, ycoord + 70), star)
-                elif user_list[name]  >= 10:
+                elif user_list[name] >= 10:
                     star = Image.open('assets/Images/bronze.png')
                     image.paste(star, (xcoord + 70, ycoord + 70), star)
                 if counter == 4:
@@ -215,7 +213,8 @@ class CrossingCord(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         # Bot or wrong channel do nothing
-        if message.author == self.bot.user or message.content[1:].startswith("spawn"):  # or message.channel == CHANNEL_IDs:
+        if message.author == self.bot.user or message.content[1:].startswith(
+                "spawn"):  # or message.channel == CHANNEL_IDs:
             return
 
         # Pokemon is going to be found
@@ -226,14 +225,12 @@ class CrossingCord(commands.Cog):
             if self.appeared:
                 await self.check_capture(message)
 
-
     @commands.command(name='restart')
     @commands.is_owner()
     async def cmd_restart(self, ctx, message=None):
         await ctx.channel.send('Restarting...')
         await self.bot.close()
         os.execl(sys.executable, sys.executable, *sys.argv)
-
 
     @commands.command(name='total')
     @commands.is_owner()
@@ -255,7 +252,7 @@ class CrossingCord(commands.Cog):
             str_title = "{}'s Villagers".format(context.author.name)
             embed = discord.Embed(type="rich", title=str_title, color=0xEEE8AA)
 
-            embed.description = "http://pokecord.meganisaclown.com/villagers/villager.php?name={}&id={}"\
+            embed.description = "http://pokecord.meganisaclown.com/villagers/villager.php?name={}&id={}" \
                 .format(urllib.parse.quote(base64.b64encode(context.author.name.encode('ascii'))), context.author.id)
             await context.channel.send(embed=embed)
         else:
@@ -617,15 +614,13 @@ class CrossingCord(commands.Cog):
         await self.bot.change_presence(status=discord.Status.online, activity=game)
 
     @commands.command(name='resend')
-    @commands.check(islandPerms)
+    @commands.check(helper_perms)
     # @has_role("crossingcord helper")
     async def cmd_resend(self, context):
         embed = discord.Embed()
         embed.title = "Who's that Villager"
         embed.set_thumbnail(url="{}/normal/{}.png".format(self.baseurl, self.villager_store[0]))
         sent_msg = await context.channel.send(embed=embed)
-
-
 
     async def check_capture(self, message):
         # await self.checkTrain(message)
@@ -722,7 +717,7 @@ class CrossingCord(commands.Cog):
             self.db.commit()
             tempstore = None
 
-            #if message.author.id in self.user_list.keys():
+            # if message.author.id in self.user_list.keys():
             #    self.user_list[message.author.id].generateHTML(message.author)
             self.time_to_spawn = datetime.now() + timedelta(seconds=random.randint(self.spawn_min, self.spawn_max))
             # await message.channel.send('Pokemon set to spawn!')
@@ -742,8 +737,6 @@ class CrossingCord(commands.Cog):
     @commands.is_owner()
     async def cmd_getrate(self, context):
         await context.channel.send("Spawnrate is {}-{}seconds.".format(self.spawn_min, self.spawn_max))
-
-
 
     @commands.command(name='clean')
     @commands.is_owner()
