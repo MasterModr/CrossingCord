@@ -26,13 +26,13 @@ def get_weather():
         print(x["weather"])
         d = datetime.now()
         timezone = pytz.timezone("America/New_York")
-        d = timezone.localize(d)
+        d2 = timezone.localize(d)
         weather = {
 
             'id': x["weather"][0]["id"],
             'icon': x["weather"][0]["icon"],
             'description': x["weather"][0]["description"],
-            'time': d.strftime("%H:%M")
+            'time': d2.strftime("%H:%M")
 
             }
         return weather

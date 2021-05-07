@@ -117,7 +117,6 @@ class CrossingCord(commands.Cog):
         await context.channel.send("Spawn Rates have been updated.")
 
     @commands.command(name='weather')
-    @commands.is_owner()
     async def cmd_weather(self, context, message=None):
         weather = get_weather()
         embed = discord.Embed(type="rich", title="Weather")
