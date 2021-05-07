@@ -11,13 +11,12 @@ from io import BytesIO
 import discord
 import base64
 import mysql.connector as mysql
-import requests
 from PIL import Image, ImageDraw, ImageFont
 from discord.ext import commands
 
 from Objects.FakeUser import *
 from Objects.island import *
-from var_secrets import *
+from Util.Weather import *
 
 
 class CrossingCord(commands.Cog):
@@ -26,6 +25,7 @@ class CrossingCord(commands.Cog):
     spawn_min = 30
     spawn_max = 60
     spawn_list = []
+
 
     def __init__(self, bot):
         self.bot = bot
@@ -38,6 +38,8 @@ class CrossingCord(commands.Cog):
             database=MYSQL_DATABASE
         )
         self.update_spawn_rates()
+
+
 
     @property
     def appeared(self):
@@ -60,6 +62,7 @@ class CrossingCord(commands.Cog):
         else:
             return True
 
+
     def update_spawn_rates(self):
         temp_list = []
         cursor = self.db.cursor()
@@ -80,6 +83,15 @@ class CrossingCord(commands.Cog):
     async def cmd_updaterates(self, context, message=None):
         self.update_spawn_rates()
         await context.channel.send("Spawn Rates have been updated.")
+
+    @commands.command(name='weather')
+    @commands.is_owner()
+    async def cmd_weather(self, context, message=None):
+        weather = get_weather()
+        embed = discord.Embed(type="rich", title="Weather")
+        embed.description = f"The weather at {weather['time']} in Montreal is {weather['description']}"
+        embed.set_thumbnail(url=f"https://openweathermap.org/img/wn/{weather['icon']}@2x.png")
+        await context.channel.send(embed=embed)
 
     def get_Islands(self):
         if os.path.isfile("IO Files/Islands.pickle"):
