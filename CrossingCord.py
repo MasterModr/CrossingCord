@@ -38,6 +38,7 @@ class CrossingCord(commands.Cog):
             database=MYSQL_DATABASE
         )
         self.update_spawn_rates()
+        self.update_weather()
 
 
 
@@ -62,6 +63,38 @@ class CrossingCord(commands.Cog):
         else:
             return True
 
+    @setInterval(5)
+    def update_weather(self):
+        weather = get_weather()
+        print(weather['time'])
+        hour = int(weather['time'].split(":")[0])
+        cursor = self.db.cursor()
+        if 200 <= weather['id'] <= 699:
+            query = (
+                f"UPDATE villagers "
+                "SET rate = 10 "
+                f"WHERE id = 404")
+        else:
+            query = (
+                f"UPDATE villagers "
+                "SET rate = 0 "
+                f"WHERE id = 404")
+        cursor.execute(query)
+
+        if weather['id'] == 800 and (hour >= 18 or hour <= 5 ):
+            query = (
+                f"UPDATE villagers "
+                "SET rate = 5 "
+                f"WHERE id = 405")
+        else:
+            query = (
+                f"UPDATE villagers "
+                "SET rate = 0 "
+                f"WHERE id = 405")
+
+        cursor.execute(query)
+        self.db.commit()
+        self.update_spawn_rates()
 
     def update_spawn_rates(self):
         temp_list = []
@@ -70,7 +103,6 @@ class CrossingCord(commands.Cog):
         for id, rate in cursor.fetchall():
             temp_list += [id] * rate
         self.spawn_list = temp_list
-        print("Spawn rates updated.")
 
     async def helper_perms(self):
         for role in self.author.roles:

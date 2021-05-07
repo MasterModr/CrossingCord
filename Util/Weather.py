@@ -1,6 +1,7 @@
 from var_secrets import *
 from Util.Timer import setInterval
 from datetime import datetime
+import pytz
 
 import requests
 
@@ -23,15 +24,17 @@ def get_weather():
     if x["cod"] != "404":
 
         print(x["weather"])
+        d = datetime.now()
+        timezone = pytz.timezone("America/New_York")
+        d = timezone.localize(d)
         weather = {
 
             'id': x["weather"][0]["id"],
             'icon': x["weather"][0]["icon"],
             'description': x["weather"][0]["description"],
-            'time': datetime.now().strftime("%H:%M")
+            'time': d.strftime("%H:%M")
 
             }
-
         return weather
     else:
         return None
