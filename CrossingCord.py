@@ -269,7 +269,7 @@ class CrossingCord(commands.Cog):
                 await self.check_capture(message)
 
     @commands.command(name='restart')
-    @commands.is_owner()
+    @commands.check(helper_perms)
     async def cmd_restart(self, ctx, message=None):
         await ctx.channel.send('Restarting...')
         await self.bot.close()
@@ -658,12 +658,8 @@ class CrossingCord(commands.Cog):
 
     @commands.command(name='resend')
     @commands.check(helper_perms)
-    # @has_role("crossingcord helper")
     async def cmd_resend(self, context):
-        embed = discord.Embed()
-        embed.title = "Who's that Villager"
-        embed.set_thumbnail(url="{}/normal/{}.png".format(self.baseurl, self.villager_store[0]))
-        sent_msg = await context.channel.send(embed=embed)
+       await context.channel.send("Please use ;restart")
 
     async def check_capture(self, message):
         # await self.checkTrain(message)

@@ -10,3 +10,7 @@ MYSQL_HOST = ""
 MYSQL_USER_NAME = ""
 MYSQL_PASS = ""
 MYSQL_DATABASE = ""
+
+# Weather API Key for https://openweathermap.org/
+WEATHER_API_KEY = ""
+
