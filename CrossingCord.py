@@ -120,7 +120,7 @@ class CrossingCord(commands.Cog):
     async def cmd_weather(self, context, message=None):
         weather = get_weather()
         embed = discord.Embed(type="rich", title="Weather")
-        embed.description = f"The weather at {weather['time']} in Montreal is {weather['description']}"
+        embed.description = f"The weather at {weather['time']} in Moonbeam is {weather['description']}"
         embed.set_thumbnail(url=f"https://openweathermap.org/img/wn/{weather['icon']}@2x.png")
         await context.channel.send(embed=embed)
 
