@@ -672,6 +672,8 @@ class CrossingCord(commands.Cog):
             pokemessage = 'becky'
         if pokemessage == 'gary':
             pokemessage = 'sly'
+        if pokemessage == 'gary':
+            pokemessage = 'sly'
         if self.villager_store is None:
             return False
         if self.villager_store[0].lower() == pokemessage:
