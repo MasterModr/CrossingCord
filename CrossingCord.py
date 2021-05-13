@@ -110,6 +110,12 @@ class CrossingCord(commands.Cog):
                 return True
         return False
 
+    async def admin_perms(self):
+        if self.author.id in ADMIN_IDS:
+            return True
+        else:
+            return False
+
     @commands.command(name='updaterates')
     @commands.is_owner()
     async def cmd_updaterates(self, context, message=None):
@@ -321,7 +327,7 @@ class CrossingCord(commands.Cog):
         # exit()
 
     @commands.command(name='startspeedround')
-    @commands.is_owner()
+    @commands.check(admin_perms)
     async def cmd_startspeedround(self, context):
         await self.startHypeTrain(context)
         # exit()
@@ -616,7 +622,6 @@ class CrossingCord(commands.Cog):
         await context.channel.send(message)
 
     @commands.command(name='spawn')
-    @commands.is_owner()
     async def cmd_spawn(self, context, message=None):
         await self._spawn(context, message)
 
@@ -789,7 +794,7 @@ class CrossingCord(commands.Cog):
             deleted = await context.channel.purge(limit=numMessages + 1)
 
     @commands.command(name='shiny')
-    @commands.is_owner()
+    @commands.check(admin_perms)
     async def cmd_shiny(self, context):
         self.guarantee_shiny = True
 
