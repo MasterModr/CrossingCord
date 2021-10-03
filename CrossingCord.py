@@ -250,7 +250,7 @@ class CrossingCord(commands.Cog):
     async def on_ready(self):
         print("Listening")
         channel = self.bot.get_channel(CHANNEL)
-        message = await channel.send("CrossingCord Started.")
+        message = await channel.send("PokeCord Started.")
         await self._spawn(message)
         # Check if a pokemon is queued to be spawned
         """if self.setToSpawn():
@@ -435,7 +435,12 @@ class CrossingCord(commands.Cog):
     async def islandrm(self, context, villager):
         Islands = self.get_Islands()
         if context.author.id in Islands.keys():
-            if Islands[context.author.id].removePokemon(villager.title()):
+            vill = ""
+            if villager.title.lower() == 'cj':
+                vill = 'CJ'
+            else:
+                vill = villager.lower()
+            if Islands[context.author.id].removePokemon(vill):
                 await context.channel.send(
                     "```\n{} has been removed from {}'s Island.\n```".format(villager.title(), context.author.name))
             else:
