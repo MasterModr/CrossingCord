@@ -20,7 +20,7 @@ from Util.Weather import *
 
 
 class CrossingCord(commands.Cog):
-    baseurl = "http://ec2-54-197-45-150.compute-1.amazonaws.com/assets"
+    baseurl = "http://ec2-52-6-191-118.compute-1.amazonaws.com/assets"
     guarantee_shiny = False
     spawn_min = 30
     spawn_max = 60
