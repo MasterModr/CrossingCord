@@ -684,25 +684,27 @@ class CrossingCord(commands.Cog):
             pokemessage = 'sly'
         if pokemessage == 'snek':
             pokemessage = 'snake'
+        if pokemessage == 'coochieface':
+            pokemessage = 'chevre'
         if self.villager_store is None:
             return False
         if self.villager_store[0].lower() == pokemessage:
             tempstore = self.villager_store
             self.villager_store = None
 
-            shinyNum = random.randint(1, 2048)
+            shinyNum = random.randint(1, 1024)
             # sub
             if "692903238462341240" in [y.id for y in message.author.roles]:
-                shinyNum = random.randint(1, 1024)
+                shinyNum = random.randint(1, 512)
             # tier 2
             if "692903238462341241" in [y.id for y in message.author.roles]:
-                shinyNum = random.randint(1, 512)
+                shinyNum = random.randint(1, 256)
             # boosters
             if "658383287600939059" in [y.id for y in message.author.roles]:
-                shinyNum = random.randint(1, 512)
+                shinyNum = random.randint(1, 256)
             # tier 3
             if "692903238462341242" in [y.id for y in message.author.roles]:
-                shinyNum = random.randint(1, 256)
+                shinyNum = random.randint(1, 128)
 
             # test switch
 
