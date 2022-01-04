@@ -1,6 +1,5 @@
 import asyncio
 import os
-import pickle
 import random
 import sys
 import urllib
@@ -13,13 +12,12 @@ import base64
 import mysql.connector as mysql
 from PIL import Image, ImageDraw, ImageFont
 from discord.ext import commands
-
-from Objects.FakeUser import *
-from Objects.island import *
+from Config import *
 from Util.Weather import *
 
 
 class CrossingCord(commands.Cog):
+
     baseurl = "http://ec2-52-6-191-118.compute-1.amazonaws.com/assets"
     guarantee_shiny = False
     spawn_min = 30
@@ -175,33 +173,33 @@ class CrossingCord(commands.Cog):
             i = 0
             while i < 10:
                 villager = row[f"villager{i + 1 }"]
-                cursor.execute(f"SELECT name from villagers WHERE id = {villager};")
-                name = cursor.fetchone()[0]
-                response = requests.get("{}/icon/{}.png".format(self.baseurl, name))
-                img = Image.open(BytesIO(response.content))
-                img = img.resize((100, 100), Image.ANTIALIAS)
-                image.paste(img, (xcoord, ycoord), img)
-                if user_list[name][1] > 1:
-                    print(name)
-                    sparkle = Image.open('assets/Images/sparkles.png')
-                    image.paste(sparkle, (xcoord + 10, ycoord + 70), sparkle)
-                if user_list[name][0] >= 100:
-                    star = Image.open('assets/Images/gold.png')
-                    image.paste(star, (xcoord + 70, ycoord + 70), star)
-                elif user_list[name][0] >= 50:
-                    star = Image.open('assets/Images/silver.png')
-                    image.paste(star, (xcoord + 70, ycoord + 70), star)
-                elif user_list[name][0] >= 10:
-                    star = Image.open('assets/Images/bronze.png')
-                    image.paste(star, (xcoord + 70, ycoord + 70), star)
+                if villager is not None:
+                    cursor.execute(f"SELECT name from villagers WHERE id = {villager};")
+                    name = cursor.fetchone()[0]
+                    response = requests.get("{}/icon/{}.png".format(self.baseurl, name))
+                    img = Image.open(BytesIO(response.content))
+                    img = img.resize((100, 100), Image.ANTIALIAS)
+                    image.paste(img, (xcoord, ycoord), img)
+                    if user_list[name][1] > 1:
+                        print(name)
+                        sparkle = Image.open('assets/Images/sparkles.png')
+                        image.paste(sparkle, (xcoord + 10, ycoord + 70), sparkle)
+                    if user_list[name][0] >= 100:
+                        star = Image.open('assets/Images/gold.png')
+                        image.paste(star, (xcoord + 70, ycoord + 70), star)
+                    elif user_list[name][0] >= 50:
+                        star = Image.open('assets/Images/silver.png')
+                        image.paste(star, (xcoord + 70, ycoord + 70), star)
+                    elif user_list[name][0] >= 10:
+                        star = Image.open('assets/Images/bronze.png')
+                        image.paste(star, (xcoord + 70, ycoord + 70), star)
 
-                if i == 4:
-                    xcoord = 50
-                    ycoord = 237
-                else:
-                    xcoord += 125
+                    if i == 4:
+                        xcoord = 50
+                        ycoord = 237
+                    else:
+                        xcoord += 125
                 i = i + 1
-
             fp = BytesIO()
             image.save(fp, format="PNG")
             fp.seek(0)
@@ -317,52 +315,46 @@ class CrossingCord(commands.Cog):
         cursor = self.db.cursor()
         query = (
             "UPDATE islands "
-            "SET background = '' "
+            "SET background = NULL "
             f"WHERE discord_id = '{context.author.id}';")
         cursor.execute(query)
         self.db.commit()
 
     async def islandreplace(self, context, villager, villager1):
-        Islands = self.get_Islands()
-
-        cursor = self.db.cursor()
-
-        cursor.execute(f"SELECT id from users WHERE discord_id = {context.author.id};")
-        result = cursor.fetchone()
-        if result is not None:
-            cursor.execute(
-                "SELECT villagers.name, villagers.id "
-                "FROM captures "
-                "INNER JOIN villagers ON captures.villager_id = villagers.id "
-                "INNER JOIN users ON captures.user_id = users.id "
-                f"WHERE users.discord_id LIKE {context.author.id};"
-            )
-            results = cursor.fetchall()
-            user_list = {}
-            for name, id in results:
-                user_list[name.title()] = [name, id]
-            if villager1.title() in user_list.keys():
-                if context.author.id in Islands.keys():
-                    if Islands[context.author.id].removePokemon(villager.title()):
-                        if Islands[context.author.id].addPokeList(user_list[villager1.title()], context.author):
-                            await context.channel.send(
-                                "```\n{} has been replaced with {} on {}'s Island.\n```".format(villager.title(),
-                                                                                                villager1.title(),
-                                                                                                context.author.name))
-                        else:
-                            await context.channel.send(
-                                "```\nCould not add {} to your Island. Maybe they are already added.\n```".format(
-                                    villager1.title()))
-                    else:
-                        await context.channel.send("```\n{} is not on your Island.\n```".format(villager.title()))
-
-                else:
-                    await context.channel.send("```\nYou do not have an island please add Villagers first.\n```")
+        dict_cursor = self.db.cursor(dictionary=True)
+        dict_cursor.execute(
+            "SELECT villager1, villager2, villager3, villager4, villager5, villager6, villager7, villager8, villager9, villager10 "
+            "FROM islands "
+            f"WHERE discord_id = '{context.author.id}';"
+        )
+        row = dict_cursor.fetchone()
+        new_cursor = self.db.cursor()
+        new_cursor.execute(f"SELECT id FROM villagers WHERE villagers.name = '{villager.title()}';")
+        result = new_cursor.fetchone();
+        vil_id = result[0]
+        if row is not None:
+            island = list(row.values())
+            if vil_id in island:
+                new_cursor.execute(f"SELECT id FROM villagers WHERE villagers.name = '{villager1.title()}';")
+                result = new_cursor.fetchone();
+                vil1_id = result[0]
+                island[island.index(vil_id)] = vil1_id
+                query = (
+                    "UPDATE islands "
+                    f"SET villager1 = {island[0]}, villager2 = {island[1]}, villager3 = {island[2]}, "
+                    f"villager4 = {island[3]}, villager5 = {island[4]}, villager6 = {island[5]}, "
+                    f"villager7 = {island[6]}, villager8 = {island[7]}, villager9 = {island[8]}, villager10 = {island[9]} "
+                    f"WHERE discord_id LIKE {context.author.id};"
+                )
+                query = query.replace("None", "NULL")
+                cursor = self.db.cursor()
+                cursor.execute(query)
+                self.db.commit()
+                await context.channel.send("```\n{} has been replaced with {} on your island.\n```".format(villager.title(), villager1.title()))
             else:
-                await context.channel.send("```\nYou have not found {}.\n```".format(villager1.title()))
+                await context.channel.send("```\n{} is not on your island.\n```".format(villager.title()))
         else:
-            await context.channel.send("```\nYou have not found any Villagers.\n```")
-        self.update_islands(Islands)
+            await context.channel.send("```\nYou do not have an island please add Villagers first.\n```")
 
     async def islandadd(self, context, villager):
         dict_cursor = self.db.cursor(dictionary=True)
@@ -391,7 +383,6 @@ class CrossingCord(commands.Cog):
                     if user_list[villager.lower()][1] not in island:
                         i = 0
                         added = False
-                        print(island)
                         while i < 10:
                             if island[i] is None:
                                 query = (
@@ -402,6 +393,7 @@ class CrossingCord(commands.Cog):
                                 cursor.execute(query)
                                 self.db.commit()
                                 added = True
+                                break;
                             i = i+1
                         if added:
                             await context.channel.send("```\n{} has been added to your island.\n```".format(villager.title()))
@@ -414,23 +406,62 @@ class CrossingCord(commands.Cog):
             else:
                 await context.channel.send("```\nYou have not found any Villagers.\n```")
         else:
-            await context.channel.send("```\nYou do not have an island please add Villagers first.\n```")
-            #make new island
+            cursor = self.db.cursor()
+            cursor.execute(
+                "SELECT villagers.name, villagers.id "
+                "FROM captures "
+                "INNER JOIN villagers ON captures.villager_id = villagers.id "
+                "INNER JOIN users ON captures.user_id = users.id "
+                f"WHERE users.discord_id LIKE {context.author.id};"
+            )
+            results = cursor.fetchall()
+            if len(results) > 0:
+                user_list = {}
+                for name, id in results:
+                    user_list[name.lower()] = [name, id]
+                if villager.lower() in user_list.keys():
+                    cursor.execute(
+                        f"INSERT INTO islands (discord_id, villager1) VALUES ({context.author.id}, {user_list[villager.lower()][1]});"
+                    )
+                else:
+                    await context.channel.send("```\nYou have not found {}.\n```".format(villager.title()))
+            else:
+                await context.channel.send("```\nYou have not found any Villagers.\n```")
 
 
 
     async def islandrm(self, context, villager):
-        Islands = self.get_Islands()
-        if context.author.id in Islands.keys():
-            vill = villager.lower()
-            if Islands[context.author.id].removePokemon(vill):
-                await context.channel.send(
-                    "```\n{} has been removed from {}'s Island.\n```".format(villager.title(), context.author.name))
+        dict_cursor = self.db.cursor(dictionary=True)
+        dict_cursor.execute(
+            "SELECT villager1, villager2, villager3, villager4, villager5, villager6, villager7, villager8, villager9, villager10 "
+            "FROM islands "
+            f"WHERE discord_id = '{context.author.id}';"
+        )
+        row = dict_cursor.fetchone()
+        new_cursor = self.db.cursor()
+        new_cursor.execute(f"SELECT id FROM villagers WHERE villagers.name = '{villager.title()}';")
+        result = new_cursor.fetchone();
+        vil_id = result[0]
+        if row is not None:
+            island = list(row.values())
+            if vil_id in island:
+                island.remove(vil_id)
+                query = (
+                    "UPDATE islands "
+                    f"SET villager1 = {island[0]}, villager2 = {island[1]}, villager3 = {island[2]}, "
+                    f"villager4 = {island[3]}, villager5 = {island[4]}, villager6 = {island[5]}, "
+                    f"villager7 = {island[6]}, villager8 = {island[7]}, villager9 = {island[8]}, villager10 = None "
+                    f"WHERE discord_id LIKE {context.author.id};"
+                )
+                query = query.replace("None", "NULL")
+                cursor = self.db.cursor()
+                cursor.execute(query)
+                self.db.commit()
+                await context.channel.send("```\n{} has been removed from your island.\n```".format(villager.title()))
             else:
-                await context.channel.send("```\n{} is not on your Island.\n```".format(villager.title()))
+                await context.channel.send("```\n{} is not on your island.\n```".format(villager.title()))
         else:
             await context.channel.send("```\nYou do not have an island please add Villagers first.\n```")
-        self.update_islands(Islands)
 
     async def islandbackground(self, context, background):
         cursor = self.db.cursor()
@@ -468,6 +499,7 @@ class CrossingCord(commands.Cog):
                     text += "\n"
                     text += "You can also do ;island help [command] for more info.\n"
                     text += "```\n"
+                    await context.channel.send(text)
                 else:
                     if args[1] == 'add':
                         text = ""
@@ -477,6 +509,7 @@ class CrossingCord(commands.Cog):
                         text += "\n"
                         text += "Adds a villager to your Island. This must be a villager you have already found. And you cannot exceed 10 villagers on your Island.\n"
                         text += "```\n"
+                        await context.channel.send(text)
                     elif args[1] == 'remove':
                         text = ""
                         text += "```\n"
@@ -485,6 +518,7 @@ class CrossingCord(commands.Cog):
                         text += "\n"
                         text += "Removes a villager from your Island.\n"
                         text += "```\n"
+                        await context.channel.send(text)
                     elif args[1] == 'replace':
                         text = ""
                         text += "```\n"
@@ -493,6 +527,7 @@ class CrossingCord(commands.Cog):
                         text += "\n"
                         text += "Replaces a villager on your Island, villager1 is the villager that is currently on yout Island and villager2 is the villager you would like to replace them with.\n"
                         text += "```\n"
+                        await context.channel.send(text)
                     elif args[1] == 'setbackground':
                         text = ""
                         text += "```\n"
@@ -502,29 +537,34 @@ class CrossingCord(commands.Cog):
                         text += "Sets your Island's background to the provided image.\n"
                         text += "The provided link must be a .png file."
                         text += "```\n"
+                        await context.channel.send(text)
                     elif args[1] == 'removebackground':
                         text = ""
                         text += "```\n"
                         text += "Island RemoveBackground:\n"
                         text += "Removes your Island's background and sets it back to the default image."
                         text += "```\n"
+                        await context.channel.send(text)
                     elif args[1] == 'help':
                         text = ""
                         text += "```\n"
                         text += "Island Help:\n"
                         text += "Think you're being funny don't ya?"
                         text += "```\n"
+                        await context.channel.send(text)
                     else:
                         text = ""
                         text += "```\n"
                         text += "Unrecognized Command\n"
                         text += "```\n"
+                        await context.channel.send(text)
             elif args[0] == 'add':
                 if len(args) == 1:
                     text = ""
                     text += "```\n"
                     text += "Please specify a villager.\n"
                     text += "```\n"
+                    await context.channel.send(text)
                 else:
                     await self.islandadd(context, args[1])
             elif args[0] == 'remove':
@@ -533,6 +573,7 @@ class CrossingCord(commands.Cog):
                     text += "```\n"
                     text += "Please specify a villager.\n"
                     text += "```\n"
+                    await context.channel.send(text)
                 else:
                     await self.islandrm(context, args[1])
             elif args[0] == 'replace':
@@ -541,6 +582,7 @@ class CrossingCord(commands.Cog):
                     text += "```\n"
                     text += "Please specify two villagers.\n"
                     text += "```\n"
+                    await context.channel.send(text)
                 else:
                     await self.islandreplace(context, args[1], args[2])
             elif args[0] == 'setbackground':
@@ -549,6 +591,7 @@ class CrossingCord(commands.Cog):
                     text += "```\n"
                     text += "Please provide a background link.\n"
                     text += "```\n"
+                    await context.channel.send(text)
                 else:
                     if await self.islandexists(context):
                         if args[1][-4:] == ".png":
@@ -558,16 +601,19 @@ class CrossingCord(commands.Cog):
                             text += "```\n"
                             text += "Your background has been updated.\n"
                             text += "```\n"
+                            await context.channel.send(text)
                         else:
                             text = ""
                             text += "```\n"
                             text += "The background link must be a PNG.\n"
                             text += "```\n"
+                            await context.channel.send(text)
                     else:
                         text = ""
                         text += "```\n"
                         text += "You do not have an island please add Villagers first.\n"
                         text += "```\n"
+                        await context.channel.send(text)
 
             elif args[0] == 'removebackground':
                 if await self.islandexists(context):
@@ -576,19 +622,21 @@ class CrossingCord(commands.Cog):
                     text += "```\n"
                     text += "Your background has been removed.\n"
                     text += "```\n"
+                    await context.channel.send(text)
                 else:
                     text = ""
                     text += "```\n"
                     text += "You do not have an island please add Villagers first.\n"
                     text += "```\n"
-
+                    await context.channel.send(text)
 
             else:
                 text = ""
                 text += "```\n"
                 text += "Unrecognized Command\n"
                 text += "```\n"
-            await context.channel.send(text)
+                await context.channel.send(text)
+
 
         # exit()
 
