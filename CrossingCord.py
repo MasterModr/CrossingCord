@@ -180,7 +180,7 @@ class CrossingCord(commands.Cog):
                     img = Image.open(BytesIO(response.content))
                     img = img.resize((100, 100), Image.ANTIALIAS)
                     image.paste(img, (xcoord, ycoord), img)
-                    if user_list[name][1] > 1:
+                    if user_list[name][1] >= 1:
                         print(name)
                         sparkle = Image.open('assets/Images/sparkles.png')
                         image.paste(sparkle, (xcoord + 10, ycoord + 70), sparkle)
