@@ -656,6 +656,7 @@ class CrossingCord(commands.Cog):
         await context.channel.send(message)
 
     @commands.command(name='spawn')
+    @commands.is_owner()
     async def cmd_spawn(self, context, message=None):
         await self._spawn(context, message)
 
@@ -804,7 +805,7 @@ class CrossingCord(commands.Cog):
         return False
 
     @commands.command(name='setrate')
-    @commands.is_owner()
+    @commands.check(helper_perms)
     async def cmd_setrate(self, context, arg, arg1):
         self.spawn_min = int(arg)
         self.spawn_max = int(arg1)
