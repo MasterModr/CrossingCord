@@ -711,7 +711,7 @@ class CrossingCord(commands.Cog):
             pokemessage = 'snake'
         if pokemessage == 'coochieface':
             pokemessage = 'chevre'
-        if pokemessage =='lewis' & (self.villager_store[0].lower() == 'jack'):
+        if (pokemessage =='lewis' )&( self.villager_store[0].lower() =='jack'):
             pokemessage = 'jack'
             self.guarantee_shiny = True
         if self.villager_store is None:
