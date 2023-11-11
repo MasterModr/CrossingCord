@@ -699,7 +699,7 @@ class CrossingCord(commands.Cog):
     async def check_capture(self, message):
         # await self.checkTrain(message)
         pokemessage = message.content.lower().replace(" ", "_")
-        if pokemessage == 'mogs':
+        if pokemessage == 'megan':
             pokemessage = 'bertha'
         if pokemessage == 'becca':
             pokemessage = 'marcel'
@@ -711,6 +711,8 @@ class CrossingCord(commands.Cog):
             pokemessage = 'snake'
         if pokemessage == 'coochieface':
             pokemessage = 'chevre'
+        if pokemessage == 'brian':
+            pokemessage = 'anchovy'
         if (pokemessage =='lewis' )&( self.villager_store[0].lower() =='jack'):
             pokemessage = 'jack'
             self.guarantee_shiny = True
